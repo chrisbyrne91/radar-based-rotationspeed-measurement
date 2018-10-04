@@ -1,7 +1,7 @@
 /*
- * 	This program...
+ * 	
  * 
- * 	© Christopher Byrne   <c13712341@mydit.ie> 
+ * 	Â© Christopher Byrne   <c13712341@mydit.ie> 
  *	http://ahfr.dit.ie/node/540
  *
  *	Dublin Institute of Technology 
@@ -20,7 +20,6 @@ import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.*;
 
-//Graphics Libraries https://knowm.org/open-source/xchart/
 import org.knowm.xchart.QuickChart;
 import org.knowm.xchart.SwingWrapper;
 import org.knowm.xchart.XChartPanel;
@@ -33,22 +32,21 @@ import org.knowm.xchart.style.markers.SeriesMarkers;
 
 public class LibrarySampleRunner {
 	
-	// Declare variables first - used for storing computed arrays
-	static ArrayList<Complex> z;					// Complex vector of RL & PL
-	static ArrayList<Complex> dz;					// Difference in z 
-	static ArrayList<Complex> dzDt;					// Product of Dz/Dt
+	static ArrayList<Complex> z;					
+	static ArrayList<Complex> dz;					
+	static ArrayList<Complex> dzDt;					
 
-	static ArrayList<Double> timeElapsed;			// Time between samples
-	static ArrayList<Double> dt;					// Difference in sample time
-	static ArrayList<Double> s11Phase;				// Phase Loss from antenna
-	static ArrayList<Double> s11Magnitude;			// Reflection Loss from antenna
-	static ArrayList<Double> angleDzDt;				// Angle of Dz/Dt - atan2(DzDt)
-	static ArrayList<Double> bCoefficients;			// Calculated by windowSize - FIR
-	static ArrayList<Double> signalStrength;		// Magnitude of Dz/Dt - |DzDt|
+	static ArrayList<Double> timeElapsed;			
+	static ArrayList<Double> dt;					
+	static ArrayList<Double> s11Phase;				
+	static ArrayList<Double> s11Magnitude;			
+	static ArrayList<Double> angleDzDt;				
+	static ArrayList<Double> bCoefficients;			
+	static ArrayList<Double> signalStrength;		
 	static ArrayList<Double> filteredSignalStrength;
-	static ArrayList<Double> unwrappedPhaseAngle;	// Unwrapped angle(DzDt) 
-	static ArrayList<Double> rotationSpeed;			// Rotation speed in RPM
-	static ArrayList<Double> filteredRotationSpeed;	// Filtered rotation speed in RPM
+	static ArrayList<Double> unwrappedPhaseAngle;	
+	static ArrayList<Double> rotationSpeed;			
+	static ArrayList<Double> filteredRotationSpeed;	
 	static ArrayList<Double> acceleration;	
 	static ArrayList<Double> jerk;
 	static ArrayList<Double> dt2;
@@ -60,71 +58,117 @@ public class LibrarySampleRunner {
 			
 		try {
 			
-			lib = new VNALibrary();									
-			lib.loadDriverByName("miniVNA-pro-extender", "COM6");								// (Device name, COM port)
-			lib.loadCalibrationFile("D:\\miniVNA Calibration Files\\1metreCopperCable.cal");	// Calibrated externally with VNAj
+			lib = new VNALibrary();		
+			int frequency = 0;
+			float sweepTime = 0;
+			int windowSize = 0;
+			int filterItterations = 0; 
+			double singnalThreshold = 0.0;
+		
+			
+			//lib.loadDriverByName("miniVNA-pro-extender", "COM6");								
+			//lib.loadCalibrationFile("D:\\miniVNA Calibration Files\\1metreCopperCable.cal");	
+			
+			System.out.print("Please enter the MiniVNA's associated COM port: ");
+			String comPort = userInput.next( );
+			System.out.print("Please enter the classpath of the calibration file: ");
+			String calibrationFileDirectory = userInput.next( );
+			lib.loadDriverByName("miniVNA-pro-extender", comPort);				
+			System.out.println("MiniVNA-pro-extender successfully connected to: " + comPort); 
+			lib.loadCalibrationFile(calibrationFileDirectory);									
+			System.out.println("Calibration file successfully installed from: " + calibrationFileDirectory);
+			
+			String userInputCondition = "Y";
+			while(userInputCondition.equals("Y")) {
+				
+				System.out.print("\nPlease enter scan frequency in Hz: ");
+				String frequencyString = userInput.next( );
+				frequency = Integer.parseInt(frequencyString);
+				System.out.print("Please enter sweep time in ms: ");
+				String sweepTimeString = userInput.next( );
+				sweepTime = Float.parseFloat(sweepTimeString);
+				System.out.print("Please enter window size for digtial filter: ");
+				String windowSizeString = userInput.next( );
+				windowSize = Integer.parseInt(windowSizeString);
+				System.out.print("Please enter number of filter iterations: ");
+				String filterItterationsString = userInput.next( );
+				filterItterations = Integer.parseInt(filterItterationsString);
+				System.out.print("Please enter signal threshold: ");
+				String filterItterationsString = userInput.next( );
+				filterItterations = Double.parseDouble(singnalThreshold);
+				
+				
+				System.out.print("\nYou have entered the following parameters:\n");
+				System.out.println("Scan Frequency:\t\t" + frequency + "Hz");
+				System.out.println("Sweep Time:\t\t" + sweepTime + "ms");
+				System.out.println("FIR Window Size:\t" + windowSize);
+				System.out.println("Filter Iterations:\t" + filterItterations);
+				System.out.println("Signal Threshold:\t" + singnalThreshold);
+				System.out.print("Would you like to change these parameteres? Y/N:\t");
+				userInputCondition = userInput.next();
+			}
 			
 			// Modify if required 
-			int theFrequency = 1218200000; 	// Scan frequency (Hz) - Where CP occurs best
-			float theSweepTime = 3000;		// Sweep time (ms) - minimum 2200ms for accuracy
-			int theWindowSize = 10;			// Apodization function - increase to smooth signal
-			int theFilterIterations = 3;	// Number of times the data is filtered
-			double singnalThreshold = 2.5;
+			//int frequency = 1218200000; 	
+			//float sweepTime = 5000;	
+			//int windowSize = 20;		
+			//int filterItterations = 40;
 			
 			String results = "Time (s)" + "," + "Signal Strength" + "," + "Angular Velocity (RPM)" + "," 
-					+ "Acceleration (Revs.s^-2)" + "," + "Jerk (Revs.s^-3\n";	// Initialise column titles for .csv output
+					+ "Acceleration (Revs.s^-2)" + "," + "Jerk (Revs.s^-3\n";	
 			
-			// Create and Display Graphical Chart for Plotting Results - Must be initialised outside of loop
 			double[] xData = new double[1];	// X-axis of Graphical Chart for Plotting Results
 			double[] yData = new double[1];	// Y-axis of Graphical Chart for Plotting Results 
 			  
 			List <XYChart> charts = new ArrayList<XYChart>();
-			final XYChart chartSignal = QuickChart.getChart("Strength of Rotation Detection", "Time [s]", "Magnitude", "Signal", xData, yData); 
+			final XYChart chartSignal = QuickChart.getChart("Strength of Rotation Detection", "Time [s]",
+				"Magnitude", "Signal", xData, yData); 
 			chartSignal.getStyler().setLegendPosition(LegendPosition.InsideNW);
 			charts.add(chartSignal);
 			
-			final XYChart chartRPM = QuickChart.getChart("Angular Velocity", "Time [s]", "Speed [RPM]", "Angular Velocity", xData, yData); 
+			final XYChart chartRPM = QuickChart.getChart("Angular Velocity", "Time [s]", "Speed [RPM]",
+				"Angular Velocity", xData, yData); 
 			chartRPM.getStyler().setLegendPosition(LegendPosition.InsideNW);
 			charts.add(chartRPM);
 			
-			final XYChart chartAcceleration = QuickChart.getChart("Angular Acceleration", "Time [s]", "Acceleration [Revs/min2]", "Angular Acceleration", xData, yData); 
+			final XYChart chartAcceleration = QuickChart.getChart("Angular Acceleration", "Time [s]", 
+				"Acceleration [Revs/min2]", "Angular Acceleration", xData, yData); 
 			chartAcceleration.getStyler().setLegendPosition(LegendPosition.InsideNW);
 			charts.add(chartAcceleration);
 			
-			final XYChart chartJerk = QuickChart.getChart("Angular Jerk", "Time [s]", "Jerk [Revs/min3]", "Angular Jerk", xData, yData); 
+			final XYChart chartJerk = QuickChart.getChart("Angular Jerk", "Time [s]", "Jerk [Revs/min3]", 
+				"Angular Jerk", xData, yData); 
 			chartJerk.getStyler().setLegendPosition(LegendPosition.InsideNW);
 			charts.add(chartJerk);
 			
-			//new SwingWrapper<XYChart>(charts).displayChartMatrix();
 			SwingWrapper<XYChart> sw = new SwingWrapper<XYChart>(charts); 
 			sw.displayChartMatrix();
 			
-			// Initialise variables that store all computed data - used for plotting
 			ArrayList<Double> accumulativeTime = new ArrayList<Double>();
 			ArrayList<Double> accumulativeSignalStrength = new ArrayList<Double>();
 			ArrayList<Double> accumulativeRotationSpeed = new ArrayList<Double>();
 			ArrayList<Double> accumulativeAcceleration = new ArrayList<Double>();
 			ArrayList<Double> accumulativeJerk = new ArrayList<Double>();
 			
-			boolean subsequentLoop = false; // Initial/subsequent loop identifier 
-			double lastSampleTime = 0;		// Initialise outside loop
-			int globalLoopIndex = 0;		// Loop count
+			boolean subsequentLoop = false;
+			double lastSampleTime = 0;		
+			int globalLoopIndex = 0;		
 			while(true){
 				 
-				initialiseVariables();								// Set all variables to zero at beginning of loop
+				initialiseVariables();								
 			
-				getSParameters(lib, theFrequency, theSweepTime);	// Measure Phase & Reflection loss from antenna
+				getSParameters(lib, theFrequency, theSweepTime);	
 				
-				double nf = computeIQNormalisationFactor(s11Phase, s11Magnitude);	// Compute I & Q offset - due to low-cost hardware
-				z = computeComplexVectorArray(nf, s11Phase, s11Magnitude);			// Create complex vector of Phase & Reflection loss
+				double nf = computeIQNormalisationFactor(s11Phase, s11Magnitude);	
+				z = computeComplexVectorArray(nf, s11Phase, s11Magnitude);			
 				dt = computeChangeInVector(timeElapsed);
-				dzDt = complexDifferenitation(timeElapsed, z);						// Differentiate Z with respect to time
+				dzDt = complexDifferenitation(timeElapsed, z);					
 				angleDzDt = computeVectorPhaseAngle(dzDt);		
 				
 				signalStrength = computeVectorMagnitude(dzDt);
-				bCoefficients = computeBCoefficients(theWindowSize);				// Compute B coefficients for digital filter
-				filteredSignalStrength = filter(theWindowSize, theFilterIterations, signalStrength, bCoefficients);	// Filter magnitude 
-				double averageSignalStrength =  round(getArrayAverage(filteredSignalStrength),2);			// Average magnitude
+				bCoefficients = computeBCoefficients(theWindowSize);				
+				filteredSignalStrength = filter(theWindowSize, theFilterIterations, signalStrength, bCoefficients);	
+				double averageSignalStrength =  round(getArrayAverage(filteredSignalStrength),2);			
 				accumulativeSignalStrength.add(averageSignalStrength);
 				
 				if (averageSignalStrength < singnalThreshold) {
@@ -134,9 +178,9 @@ public class LibrarySampleRunner {
 						jerk.add(0.0);
 					}
 				}else {
-				unwrappedPhaseAngle = unwrapPhaseAngleArray(angleDzDt);				// Angular Displacement
-				rotationSpeed = calculateRotationSpeed(unwrappedPhaseAngle, dt);	// Angular Velocity
-				filteredRotationSpeed = filter(theWindowSize, theFilterIterations, rotationSpeed, bCoefficients); 	// Filter rotation speed
+				unwrappedPhaseAngle = unwrapPhaseAngleArray(angleDzDt);				
+				rotationSpeed = calculateRotationSpeed(unwrappedPhaseAngle, dt);	
+				filteredRotationSpeed = filter(theWindowSize, theFilterIterations, rotationSpeed, bCoefficients); 
 				}
 				double averageRotationSpeed = round(getArrayAverage(filteredRotationSpeed),2);	
 				accumulativeRotationSpeed.add(averageRotationSpeed); 
@@ -145,10 +189,13 @@ public class LibrarySampleRunner {
 					lastSampleTime = (accumulativeTime.get(accumulativeTime.size()-1));
 					accumulativeTime.add( round( (timeElapsed.get(timeElapsed.size()-1)+lastSampleTime),3) );
 					
-					double deltaLoopTime = ( (accumulativeTime.get(globalLoopIndex)) - (accumulativeTime.get(globalLoopIndex-1)) );
-					double deltaRotationSpeed = ( (accumulativeRotationSpeed.get(globalLoopIndex)) - (accumulativeRotationSpeed.get(globalLoopIndex-1)) );
+					double deltaLoopTime = ( (accumulativeTime.get(globalLoopIndex)) 
+						- (accumulativeTime.get(globalLoopIndex-1)) );
+					double deltaRotationSpeed = ( (accumulativeRotationSpeed.get(globalLoopIndex)) - 
+						(accumulativeRotationSpeed.get(globalLoopIndex-1)) );
 					accumulativeAcceleration.add( round(deltaRotationSpeed/deltaLoopTime,2) );
-					double deltaAcceleration = ( (accumulativeAcceleration.get(globalLoopIndex)) - (accumulativeAcceleration.get(globalLoopIndex-1)) );
+					double deltaAcceleration = ( (accumulativeAcceleration.get(globalLoopIndex)) - 
+						(accumulativeAcceleration.get(globalLoopIndex-1)) );
 					accumulativeJerk.add( round(deltaAcceleration/deltaLoopTime,2) );
 				} 
 				else{
@@ -157,19 +204,24 @@ public class LibrarySampleRunner {
 					accumulativeJerk.add(0.0);
 				}
 								
-				plotData(accumulativeTime, accumulativeSignalStrength, charts.get(0), sw.getXChartPanel(0), "Signal");
-				plotData(accumulativeTime, accumulativeRotationSpeed, charts.get(1), sw.getXChartPanel(1), "Angular Velocity");
-				plotData(accumulativeTime, accumulativeAcceleration, charts.get(2), sw.getXChartPanel(2), "Angular Acceleration");
-				plotData(accumulativeTime, accumulativeJerk, charts.get(3), sw.getXChartPanel(3), "Angular Jerk");
+				plotData(accumulativeTime, accumulativeSignalStrength, charts.get(0),
+					sw.getXChartPanel(0), "Signal");
+				plotData(accumulativeTime, accumulativeRotationSpeed, charts.get(1), 
+					sw.getXChartPanel(1), "Angular Velocity");
+				plotData(accumulativeTime, accumulativeAcceleration, charts.get(2), 
+					sw.getXChartPanel(2), "Angular Acceleration");
+				plotData(accumulativeTime, accumulativeJerk, charts.get(3), 
+					sw.getXChartPanel(3), "Angular Jerk");
 				
+				System.out.println("\nAt time: " + lastSampleTime + "s " + "with signal 
+					amplitude of " + averageSignalStrength);
+				System.out.println("The rotation speed is " + averageRotationSpeed + "RPM" + 
+					" with acceleration of " + accumulativeAcceleration.get(globalLoopIndex) + 
+						"Revs/min2 and jerk of " + accumulativeJerk.get(globalLoopIndex) + "Revs/min3");
 				
-				System.out.println("\nAt time: " + lastSampleTime + "s " + "with signal amplitude of " + averageSignalStrength);
-				System.out.println("The rotation speed is " + averageRotationSpeed + "RPM" + " with acceleration of " + 
-						accumulativeAcceleration.get(globalLoopIndex) + "Revs/min2 and jerk of " + accumulativeJerk.get(globalLoopIndex) 
-							+ "Revs/min3");
-				
-				results += lastSampleTime + "," + averageSignalStrength + "," + averageRotationSpeed + "," + 
-						accumulativeAcceleration.get(globalLoopIndex) + "," + accumulativeJerk.get(globalLoopIndex) + "\n";	
+				results += lastSampleTime + "," + averageSignalStrength + "," + averageRotationSpeed 
+					+ "," + accumulativeAcceleration.get(globalLoopIndex) + "," + 
+						accumulativeJerk.get(globalLoopIndex) + "\n";	
 				outputResults(results);
 				
 				subsequentLoop = true;
@@ -186,54 +238,53 @@ public class LibrarySampleRunner {
 		}
 	}
 	
-	// Set all variables to zero
 	private static void initialiseVariables() {
 
-		z = new ArrayList<Complex>();					// Complex vector of RL & PL
-		dz = new ArrayList<Complex>();					// Difference in z 
+		z = new ArrayList<Complex>();					
+		dz = new ArrayList<Complex>();
 		dzDt = new ArrayList<Complex>();
 		
-		s11Phase = new ArrayList<Double>();				// Phase Loss from antenna
-		s11Magnitude = new ArrayList<Double>();			// Reflection Loss from antenna
-		angleDzDt = new ArrayList<Double>();			// Angle of Dz/Dt - atan2(DzDt)
-		signalStrength = new ArrayList<Double>();		// Magnitude of Dz/Dt - |DzDt|
+		s11Phase = new ArrayList<Double>();			
+		s11Magnitude = new ArrayList<Double>();			
+		angleDzDt = new ArrayList<Double>();			
+		signalStrength = new ArrayList<Double>();		
 		filteredSignalStrength = new ArrayList<Double>();	
-		unwrappedPhaseAngle = new ArrayList<Double>();	// Unwrapped angle(DzDt) 
-		rotationSpeed = new ArrayList<Double>();		// Rotation speed in RPM
-		bCoefficients = new ArrayList<Double>();		// Calculated by windowSize - IIR
-		filteredRotationSpeed = new ArrayList<Double>();// Filtered rotation speed in RPM	
-		timeElapsed = new ArrayList<Double>();			// Time between samples
-		dt = new ArrayList<Double>();					// Difference in sample time
+		unwrappedPhaseAngle = new ArrayList<Double>();
+		rotationSpeed = new ArrayList<Double>();		
+		bCoefficients = new ArrayList<Double>();		
+		filteredRotationSpeed = new ArrayList<Double>();
+		timeElapsed = new ArrayList<Double>();			
+		dt = new ArrayList<Double>();					
 		dt2 = new ArrayList<Double>();	
 		acceleration = new ArrayList<Double>();
 		jerk = new ArrayList<Double>();
 	}
 	
-	// Measure S-Parameters of Antenna for sweep time length - updates three array lists: time, magnitude and phase
 	private static void getSParameters(VNALibrary lib, int frequency, double sweepTime) {
 		VNACalibratedSampleBlock rc = null ;
-		double currentTime = System.currentTimeMillis();  	// Get time now
-		double sweepTimeStart = currentTime;				// Initialise sweep time start
+		double currentTime = System.currentTimeMillis();  	
+		double sweepTimeStart = currentTime;				
 		double sweepTimeEnd = sweepTimeStart + sweepTime;
 		
-		while(System.currentTimeMillis() < sweepTimeEnd) {						
+		while(System.currentTimeMillis() < sweepTimeEnd) {
 			
 			try { 
-				rc = lib.scan(frequency, frequency+1088, 1, "REFL");				// Frequency scan
+				rc = lib.scan(frequency, frequency+1088, 1, "REFL");				
 			} catch (Exception e) {
 				e.printStackTrace();
-			}																		// Single frequency scan
-			currentTime = System.currentTimeMillis();								// Get time now 
-			double sampleTime = (float) ((currentTime - sweepTimeStart)/1000f); 	// Compute sample time
+			}
+			currentTime = System.currentTimeMillis();
+			double sampleTime = (float) ((currentTime - sweepTimeStart)/1000f); 	
 			
 			// Store the Reflection Loss, Phase Loss and Sample time into arrays
-			s11Magnitude.add(rc.getCalibratedSamples()[0].getReflectionLoss());		//RL
-			s11Phase.add(rc.getCalibratedSamples()[0].getReflectionPhase());	  	//PL
-			timeElapsed.add(sampleTime);									      	//Time
+			s11Magnitude.add(rc.getCalibratedSamples()[0].getReflectionLoss());		
+			s11Phase.add(rc.getCalibratedSamples()[0].getReflectionPhase());	  	
+			timeElapsed.add(sampleTime);									      
 		}
 	}
 
-	private static double computeIQNormalisationFactor(ArrayList<Double> phase, ArrayList<Double> magnitude) {
+	private static double computeIQNormalisationFactor(ArrayList<Double> phase, 
+		ArrayList<Double> magnitude) {
 		double minRL = Collections.min(magnitude);		
 		double maxRL = Collections.max(magnitude);		
 		double minPL = Collections.min(phase); 			
@@ -242,9 +293,9 @@ public class LibrarySampleRunner {
 		return normilisationFactor;
 	}
 	
-	private static ArrayList<Complex> computeComplexVectorArray(double normilisationFactor, ArrayList<Double> ImaginaryPart ,
-			ArrayList<Double> realPart ) {
-		ArrayList<Complex>z = new ArrayList<Complex>(); 
+	private static ArrayList<Complex> computeComplexVectorArray(double normilisationFactor, 
+		ArrayList<Double> ImaginaryPart, ArrayList<Double> realPart ) {
+		ArrayList<Complex> z = new ArrayList<Complex>(); 
 		for (int i = 0; i <= realPart.size()-1; i++) {
 			z.add( new Complex( realPart.get(i), (ImaginaryPart.get(i))*normilisationFactor ) );			
 		}
@@ -271,7 +322,8 @@ public class LibrarySampleRunner {
 			}
 		return (result);
 	}
-	private static ArrayList<Complex> complexDifferenitation(ArrayList<Double> timeElapsed, ArrayList<Complex> z) {
+	private static ArrayList<Complex> complexDifferenitation(ArrayList<Double> 
+		timeElapsed, ArrayList<Complex> z) {
 		ArrayList<Complex>complexDt = new ArrayList<Complex>();
 		ArrayList<Complex>dz = new ArrayList<Complex>();
 		ArrayList<Complex>result = new ArrayList<Complex>();
@@ -320,7 +372,8 @@ public class LibrarySampleRunner {
 		return (unwrappedPhase);
 	}
 	
-	private static ArrayList<Double> calculateRotationSpeed(ArrayList<Double> unwrappedPhaseAngle, ArrayList<Double> deltaTime) {
+	private static ArrayList<Double> calculateRotationSpeed(ArrayList<Double> 
+		unwrappedPhaseAngle, ArrayList<Double> deltaTime) {
 		ArrayList<Double> dPhase = new ArrayList<Double>();
 		ArrayList<Double> dPhaseDt= new ArrayList<Double>();
 		ArrayList<Double> result = new ArrayList<Double>();
@@ -341,7 +394,8 @@ public class LibrarySampleRunner {
 		return(coefficients);
 	}
 
-	private static ArrayList<Double> filter(int windowSize, int filterItterations, ArrayList<Double> unfilteredArray,ArrayList<Double> coefficients) {
+	private static ArrayList<Double> filter(int windowSize, int filterItterations, 
+		ArrayList<Double> unfilteredArray,ArrayList<Double> coefficients) {
 		
 		ArrayList<Double> filteredArray = new ArrayList<Double>();
 		for (int k = 1; k <= filterItterations; k++) {
@@ -410,7 +464,8 @@ public class LibrarySampleRunner {
 		});
 	}
 
-	private static void outputResults(String output) throws FileNotFoundException, UnsupportedEncodingException {
+	private static void outputResults(String output) throws FileNotFoundException, 
+		UnsupportedEncodingException {
 		PrintWriter writer1 = new PrintWriter("results.csv", "UTF-8");
 		writer1.println(output);
 		writer1.close();
